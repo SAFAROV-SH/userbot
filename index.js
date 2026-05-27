@@ -37,54 +37,45 @@ async function sendToApi(amount, card) {
   const url = `${API_URL}?amount=${amount}&card=${card}`;
   try {
     const res = await axios.get(url, { timeout: 10000 });
-    console.log(`✅ API [${res.status}]:`, res.data);
+    console.log(`✅ API [${res.status}]:`, JSON.stringify(res.data));
   } catch (e) {
     console.error("❌ API xatolik:", e.message);
   }
 }
 
 async function main() {
-  // Session: env → file → bo'sh
   let sessionString = "";
   if (process.env.SESSION_STRING) {
     sessionString = process.env.SESSION_STRING;
-    console.log("🔑 Session env dan olindi.");
   } else if (fs.existsSync(SESSION_FILE)) {
     sessionString = fs.readFileSync(SESSION_FILE, "utf-8").trim();
-    console.log("🔑 Session fayldan olindi.");
   }
 
   const session = new StringSession(sessionString);
   const client  = new TelegramClient(session, API_ID, API_HASH, {
-    connectionRetries: 10,
+    connectionRetries: 5,
     retryDelay: 3000,
     autoReconnect: true,
-    requestRetries: 5,
   });
 
   const rl  = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask = q => new Promise(r => rl.question(q, r));
 
   await client.start({
-    phoneNumber: () => ask("📱 Telefon raqam (+998...): "),
-    password:    () => ask("🔐 2FA parol (yo'q bo'lsa Enter): "),
-    phoneCode:   () => ask("📩 SMS/Telegram kod: "),
-    onError:     e  => console.error("Login xatolik:", e.message),
+    phoneNumber: () => ask("📱 Telefon raqam: "),
+    password:    () => ask("🔐 2FA parol: "),
+    phoneCode:   () => ask("📩 Kod: "),
+    onError:     e  => console.error("Xatolik:", e.message),
   });
 
-  // Session saqlash
   const saved = client.session.save();
   fs.writeFileSync(SESSION_FILE, saved);
-  console.log("\n✅ SESSION_STRING (Railway ga qo'shing):");
-  console.log("─".repeat(40));
-  console.log(saved);
-  console.log("─".repeat(40) + "\n");
-
+  console.log("\n✅ SESSION_STRING:\n" + saved + "\n");
   rl.close();
 
   const me = await client.getMe();
-  console.log(`✅ Ulandi: ${me.firstName} (@${me.username})`);
-  console.log("📡 Xabarlar kutilmoqda...\n");
+  console.log(`✅ Ulandi: ${me.firstName}`);
+  console.log("📡 Kutilmoqda...\n");
 
   client.addEventHandler(async (event) => {
     const msg = event.message;
@@ -94,26 +85,28 @@ async function main() {
     if (senderId !== TARGET_BOT_ID) return;
 
     const text = msg.text;
-    console.log(`\n📨 Xabar:\n${text}`);
+    console.log(`📨 Xabar:\n${text}`);
 
     const parsed = parseMessage(text);
     if (!parsed) {
-      console.log("⏭️  Kerakli format emas.\n");
+      console.log("⏭️  Format emas.\n");
       return;
     }
 
-    console.log(`💰 Summa: ${parsed.amount} | 💳 Karta: ${parsed.card}`);
+    console.log(`💰 ${parsed.amount} | 💳 ${parsed.card}`);
     await sendToApi(parsed.amount, parsed.card);
-    console.log("─".repeat(40));
   }, new NewMessage({}));
 
   process.on("SIGINT", async () => {
-    console.log("\n🛑 To'xtatildi.");
     await client.disconnect();
     process.exit(0);
   });
 
-  await client.catch(e => console.error("Client xatolik:", e));
+  // Doimiy ushlab turish
+  await new Promise(() => {});
 }
 
-main().catch(console.error);
+main().catch(e => {
+  console.error("Fatal:", e.message);
+  process.exit(1);
+});
