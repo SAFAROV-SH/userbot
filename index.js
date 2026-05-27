@@ -14,23 +14,19 @@ const API_URL       = "https://connectuz.uz/api.php";
 const SESSION_FILE  = path.join(__dirname, "session.txt");
 // ==================
 
-// Markdown belgilarini olib tashlash
 function cleanText(str) {
   return str.replace(/[*_~`]/g, "").trim();
 }
 
 function parseMessage(text) {
   const lines = text.split("\n").map(l => cleanText(l)).filter(Boolean);
-
   if (!lines.length || !lines[0].includes("🎉 To'ldirish")) return null;
   if (lines.length < 4) return null;
 
-  // 2-qator: summa
   const amountRaw = lines[1].replace(/[^\d]/g, "");
   if (amountRaw.length < 3) return null;
   const amount = parseInt(amountRaw.slice(0, -2), 10);
 
-  // 4-qator: karta
   const card = lines[3].replace(/[^\d]/g, "");
   if (!card) return null;
 
@@ -48,11 +44,17 @@ async function sendToApi(amount, card) {
 }
 
 async function main() {
-  const savedSession = fs.existsSync(SESSION_FILE)
-    ? fs.readFileSync(SESSION_FILE, "utf-8").trim()
-    : "";
+  // Session: env → file → bo'sh
+  let sessionString = "";
+  if (process.env.SESSION_STRING) {
+    sessionString = process.env.SESSION_STRING;
+    console.log("🔑 Session env dan olindi.");
+  } else if (fs.existsSync(SESSION_FILE)) {
+    sessionString = fs.readFileSync(SESSION_FILE, "utf-8").trim();
+    console.log("🔑 Session fayldan olindi.");
+  }
 
-  const session = new StringSession(savedSession);
+  const session = new StringSession(sessionString);
   const client  = new TelegramClient(session, API_ID, API_HASH, {
     connectionRetries: 10,
     retryDelay: 3000,
@@ -70,7 +72,14 @@ async function main() {
     onError:     e  => console.error("Login xatolik:", e.message),
   });
 
-  fs.writeFileSync(SESSION_FILE, client.session.save());
+  // Session saqlash
+  const saved = client.session.save();
+  fs.writeFileSync(SESSION_FILE, saved);
+  console.log("\n✅ SESSION_STRING (Railway ga qo'shing):");
+  console.log("─".repeat(40));
+  console.log(saved);
+  console.log("─".repeat(40) + "\n");
+
   rl.close();
 
   const me = await client.getMe();
