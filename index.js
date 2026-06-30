@@ -1,13 +1,13 @@
-
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 const axios = require("axios");
 
 // ===== SOZLAMALAR =====
-const API_ID = Number(process.env.API_ID);
-const API_HASH = process.env.API_HASH;
-const SESSION_STRING = process.env.SESSION_STRING;
+const API_ID = 39537053;
+const API_HASH = "3598ecf1a70cc2c3332eb89ae8ac8ec6";
+
+const SESSION_STRING = "SESSION_STRING_YOZING";
 
 const TARGET_BOT_ID = 856254490;
 const API_URL = "https://connectuz.uz/api.php";
@@ -63,11 +63,6 @@ async function sendToApi(amount, card) {
 }
 
 async function main() {
-  if (!API_ID || !API_HASH || !SESSION_STRING) {
-    console.log("❌ ENV yo'q");
-    process.exit(1);
-  }
-
   const client = new TelegramClient(
     new StringSession(SESSION_STRING),
     API_ID,
@@ -127,7 +122,7 @@ async function main() {
     process.exit(0);
   });
 
-  // Railway uchun alive ushlab turadi
+  // Railway uchun alive
   await new Promise(() => {});
 }
 
