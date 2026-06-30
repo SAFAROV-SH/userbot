@@ -1,112 +1,137 @@
+```js
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 const axios = require("axios");
-const readline = require("readline");
-const fs = require("fs");
-const path = require("path");
 
-// === SOZLAMALAR ===
-const API_ID        = 12669123;
-const API_HASH      = "a70dc22137b5cdbbe760f1a58e2719a7";
+// ===== SOZLAMALAR =====
+const API_ID = Number(process.env.API_ID);
+const API_HASH = process.env.API_HASH;
+const SESSION_STRING = process.env.SESSION_STRING;
+
 const TARGET_BOT_ID = 856254490;
-const API_URL       = "https://connectuz.uz/api.php";
-const SESSION_FILE  = path.join(__dirname, "session.txt");
-// ==================
+const API_URL = "https://connectuz.uz/api.php";
+// ======================
 
 function cleanText(str) {
   return str.replace(/[*_~`]/g, "").trim();
 }
 
 function parseMessage(text) {
-  const lines = text.split("\n").map(l => cleanText(l)).filter(Boolean);
-  if (!lines.length || !lines[0].includes("🎉 To'ldirish")) return null;
-  if (lines.length < 4) return null;
+  const lines = text
+    .split("\n")
+    .map((l) => cleanText(l))
+    .filter(Boolean);
+
+  if (!lines.length || !lines[0].includes("🎉 To'ldirish")) {
+    return null;
+  }
+
+  if (lines.length < 4) {
+    return null;
+  }
 
   const amountRaw = lines[1].replace(/[^\d]/g, "");
-  if (amountRaw.length < 3) return null;
+
+  if (amountRaw.length < 3) {
+    return null;
+  }
+
   const amount = parseInt(amountRaw.slice(0, -2), 10);
 
   const card = lines[3].replace(/[^\d]/g, "");
-  if (!card) return null;
+
+  if (!card) {
+    return null;
+  }
 
   return { amount, card };
 }
 
 async function sendToApi(amount, card) {
   const url = `${API_URL}?amount=${amount}&card=${card}`;
+
   try {
-    const res = await axios.get(url, { timeout: 10000 });
-    console.log(`✅ API [${res.status}]:`, JSON.stringify(res.data));
+    const res = await axios.get(url, {
+      timeout: 10000,
+    });
+
+    console.log(`✅ API [${res.status}]`, res.data);
   } catch (e) {
     console.error("❌ API xatolik:", e.message);
   }
 }
 
 async function main() {
-  let sessionString = "";
-  if (process.env.SESSION_STRING) {
-    sessionString = process.env.SESSION_STRING;
-  } else if (fs.existsSync(SESSION_FILE)) {
-    sessionString = fs.readFileSync(SESSION_FILE, "utf-8").trim();
+  if (!API_ID || !API_HASH || !SESSION_STRING) {
+    console.log("❌ ENV yo'q");
+    process.exit(1);
   }
 
-  const session = new StringSession(sessionString);
-  const client  = new TelegramClient(session, API_ID, API_HASH, {
-    connectionRetries: 5,
-    retryDelay: 3000,
-    autoReconnect: true,
-  });
+  const client = new TelegramClient(
+    new StringSession(SESSION_STRING),
+    API_ID,
+    API_HASH,
+    {
+      connectionRetries: 5,
+      retryDelay: 3000,
+      autoReconnect: true,
+    }
+  );
 
-  const rl  = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const ask = q => new Promise(r => rl.question(q, r));
+  console.log("🔌 Ulanmoqda...");
 
-  await client.start({
-    phoneNumber: () => ask("📱 Telefon raqam: "),
-    password:    () => ask("🔐 2FA parol: "),
-    phoneCode:   () => ask("📩 Kod: "),
-    onError:     e  => console.error("Xatolik:", e.message),
-  });
-
-  const saved = client.session.save();
-  fs.writeFileSync(SESSION_FILE, saved);
-  console.log("\n✅ SESSION_STRING:\n" + saved + "\n");
-  rl.close();
+  await client.connect();
 
   const me = await client.getMe();
+
   console.log(`✅ Ulandi: ${me.firstName}`);
   console.log("📡 Kutilmoqda...\n");
 
-  client.addEventHandler(async (event) => {
-    const msg = event.message;
-    if (!msg?.text) return;
+  client.addEventHandler(
+    async (event) => {
+      try {
+        const msg = event.message;
 
-    const senderId = Number(msg.senderId);
-    if (senderId !== TARGET_BOT_ID) return;
+        if (!msg?.text) return;
 
-    const text = msg.text;
-    console.log(`📨 Xabar:\n${text}`);
+        const senderId = Number(msg.senderId);
 
-    const parsed = parseMessage(text);
-    if (!parsed) {
-      console.log("⏭️  Format emas.\n");
-      return;
-    }
+        if (senderId !== TARGET_BOT_ID) return;
 
-    console.log(`💰 ${parsed.amount} | 💳 ${parsed.card}`);
-    await sendToApi(parsed.amount, parsed.card);
-  }, new NewMessage({}));
+        const text = msg.text;
+
+        console.log(`📨 Xabar:\n${text}\n`);
+
+        const parsed = parseMessage(text);
+
+        if (!parsed) {
+          console.log("⏭️ Mos format emas\n");
+          return;
+        }
+
+        console.log(`💰 Summa: ${parsed.amount}`);
+        console.log(`💳 Karta: ${parsed.card}\n`);
+
+        await sendToApi(parsed.amount, parsed.card);
+      } catch (e) {
+        console.error("❌ Handler xato:", e.message);
+      }
+    },
+    new NewMessage({})
+  );
 
   process.on("SIGINT", async () => {
+    console.log("⛔ To'xtatilmoqda...");
     await client.disconnect();
     process.exit(0);
   });
 
-  // Doimiy ushlab turish
+  // Railway uchun alive ushlab turadi
   await new Promise(() => {});
 }
 
-main().catch(e => {
-  console.error("Fatal:", e.message);
-  process.exit(1);
+main().catch((e) => {
+  console.error("❌ Fatal:", e);
 });
+```
