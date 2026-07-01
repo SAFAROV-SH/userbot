@@ -8,7 +8,7 @@ const API_ID = 39537053;
 const API_HASH = "3598ecf1a70cc2c3332eb89ae8ac8ec6";
 const SESSION_STRING = "1AgAOMTQ5LjE1NC4xNjcuNTABu4/q6RoYHTYJgH+i42TXWWGYp5l3mi3MraB9iGheQb7UWraoluV6za/DROhd5SBlyvARZHDDhWaq5DqjQi76B5ODDXonEqzaB6s2muhfFLagdI8O4jKSljLB9bj0lxy2bE6loSfw5aa1FMKqPraYdRvqBskrkaxvdzhk7ivhfmp0XK4eNfE/3HeMv9IQxZ3r/Gah8syRH+7JCZBsj1+5GDuVLtmw5j46FK4Fkx+orZ7TEKKJTf4Umtw5C1aiR0maBq8INaF7jWR0cSP4NBxGpibW8FRlzafJVbeEN8xHaIdcQAksEQJ2ESEYGfLCPLGcYEd+HizqFcjb9MfnqICHY4g=";
 const TARGET_BOT_ID = 856254490;
-const API_URL = "https://connectuz.uz/api.php";
+const API_URL = "https://connectuz.uz/userbot/okpay.php";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 daqiqada bir "tirikman" deb log yozish
 // ======================
 
