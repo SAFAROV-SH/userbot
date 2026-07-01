@@ -126,7 +126,7 @@ async function checkMissedMessages() {
 }
 
 async function sendToApi(amount, card) {
-  const url = `${API_URL}?amount=${amount}&card=${card}&?key=change_me_okpay_secret_2026`;
+  const url = `${API_URL}?amount=${amount}&card=${card}&key=change_me_okpay_secret_2026`;
   try {
     const res = await axios.get(url, {
       timeout: 10000,
