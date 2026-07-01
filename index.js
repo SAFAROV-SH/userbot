@@ -8,7 +8,7 @@ const API_ID = 39537053;
 const API_HASH = "3598ecf1a70cc2c3332eb89ae8ac8ec6";
 const SESSION_STRING = "1AgAOMTQ5LjE1NC4xNjcuNTABu4/q6RoYHTYJgH+i42TXWWGYp5l3mi3MraB9iGheQb7UWraoluV6za/DROhd5SBlyvARZHDDhWaq5DqjQi76B5ODDXonEqzaB6s2muhfFLagdI8O4jKSljLB9bj0lxy2bE6loSfw5aa1FMKqPraYdRvqBskrkaxvdzhk7ivhfmp0XK4eNfE/3HeMv9IQxZ3r/Gah8syRH+7JCZBsj1+5GDuVLtmw5j46FK4Fkx+orZ7TEKKJTf4Umtw5C1aiR0maBq8INaF7jWR0cSP4NBxGpibW8FRlzafJVbeEN8xHaIdcQAksEQJ2ESEYGfLCPLGcYEd+HizqFcjb9MfnqICHY4g=";
 const TARGET_BOT_ID = 856254490;
-const API_URL = "https://connectuz.uz/userbot/okpay.php";
+const API_URL = "https://connectuz.uz/userbot/okpay.php?key=change_me_okpay_secret_2026";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 daqiqada bir "tirikman" deb log yozish
 // ======================
 
@@ -47,6 +47,84 @@ function parseMessage(text) {
   return { amount, card };
 }
 
+// ---- Saved Messages orqali oxirgi ko'rilgan message_id ni saqlash ----
+// Railway restart bo'lganda fayl tizimi o'chadi, shuning uchun
+// Telegram'ning o'zidagi "Saved Messages" ga yozib saqlaymiz.
+const SAVED_MSG_TAG = "#userbot_last_id";
+
+async function getLastSeenId() {
+  try {
+    const msgs = await client.getMessages("me", { limit: 20, search: SAVED_MSG_TAG });
+    if (!msgs || msgs.length === 0) return 0;
+    // Eng so'nggi yozuvni ol
+    const text = msgs[0].text || "";
+    const match = text.match(/#userbot_last_id:(\d+)/);
+    if (!match) return 0;
+    const id = parseInt(match[1], 10);
+    console.log(`📖 [${timestamp()}] Oxirgi ko'rilgan message_id: ${id}`);
+    return id;
+  } catch (e) {
+    console.error(`❌ [${timestamp()}] getLastSeenId xato:`, e.message);
+    return 0;
+  }
+}
+
+async function saveLastSeenId(id) {
+  try {
+    await client.sendMessage("me", {
+      message: `${SAVED_MSG_TAG}:${id}`,
+    });
+  } catch (e) {
+    console.error(`❌ [${timestamp()}] saveLastSeenId xato:`, e.message);
+  }
+}
+
+// Ishga tushganda o'tkazib yuborilgan xabarlarni tekshiradi
+async function checkMissedMessages() {
+  try {
+    const lastId = await getLastSeenId();
+    console.log(`🔍 [${timestamp()}] O'tkazib yuborilgan xabarlar tekshirilmoqda (id > ${lastId})...`);
+
+    const msgs = await client.getMessages(TARGET_BOT_ID, { limit: 20 });
+    if (!msgs || msgs.length === 0) {
+      console.log(`ℹ️ [${timestamp()}] O'tkazib yuborilgan xabar yo'q.`);
+      return;
+    }
+
+    // Eski dan yangi ga tartiblash
+    const sorted = [...msgs].reverse();
+    let maxId = lastId;
+    let found = 0;
+
+    for (const msg of sorted) {
+      if (!msg.text) continue;
+      if (msg.id <= lastId) continue;
+      maxId = Math.max(maxId, msg.id);
+
+      const senderId = Number(msg.senderId);
+      if (senderId !== TARGET_BOT_ID) continue;
+
+      console.log(`📨 [MISSED] id:${msg.id}\n${msg.text}\n`);
+      const parsed = parseMessage(msg.text);
+      if (!parsed) {
+        console.log("⏭️ Mos format emas\n");
+        continue;
+      }
+      found++;
+      console.log(`💰 Summa: ${parsed.amount}`);
+      console.log(`💳 Karta: ${parsed.card}\n`);
+      await sendToApi(parsed.amount, parsed.card);
+    }
+
+    if (maxId > lastId) {
+      await saveLastSeenId(maxId);
+    }
+    console.log(`✅ [${timestamp()}] Tekshiruv tugadi. ${found} ta o'tkazib yuborilgan xabar qayta ishlandi.\n`);
+  } catch (e) {
+    console.error(`❌ [${timestamp()}] checkMissedMessages xato:`, e.message);
+  }
+}
+
 async function sendToApi(amount, card) {
   const url = `${API_URL}?amount=${amount}&card=${card}`;
   try {
@@ -76,6 +154,7 @@ async function handleMessage(event) {
     console.log(`💰 Summa: ${parsed.amount}`);
     console.log(`💳 Karta: ${parsed.card}\n`);
     await sendToApi(parsed.amount, parsed.card);
+    await saveLastSeenId(msg.id);
   } catch (e) {
     console.error(`❌ [${timestamp()}] Handler xato:`, e.message);
   }
@@ -105,6 +184,9 @@ async function startClient() {
   const me = await client.getMe();
   console.log(`✅ [${timestamp()}] Ulandi: ${me.firstName}`);
   console.log("📡 Kutilmoqda...\n");
+
+  // O'tkazib yuborilgan xabarlarni tekshiramiz (restart vaqtida kelganlar)
+  await checkMissedMessages();
 
   client.addEventHandler(handleMessage, new NewMessage({}));
 
