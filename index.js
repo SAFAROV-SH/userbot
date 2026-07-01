@@ -47,20 +47,15 @@ function parseMessage(text) {
   return { amount, card };
 }
 
-// ---- Saved Messages orqali oxirgi ko'rilgan message_id ni saqlash ----
-// Railway restart bo'lganda fayl tizimi o'chadi, shuning uchun
-// Telegram'ning o'zidagi "Saved Messages" ga yozib saqlaymiz.
-const SAVED_MSG_TAG = "#userbot_last_id";
+// ---- /tmp/last_id.json orqali oxirgi ko'rilgan message_id ni saqlash ----
+const fs = require("fs");
+const LAST_ID_FILE = "/tmp/last_id.json";
 
 async function getLastSeenId() {
   try {
-    const msgs = await client.getMessages("me", { limit: 20, search: SAVED_MSG_TAG });
-    if (!msgs || msgs.length === 0) return 0;
-    // Eng so'nggi yozuvni ol
-    const text = msgs[0].text || "";
-    const match = text.match(/#userbot_last_id:(\d+)/);
-    if (!match) return 0;
-    const id = parseInt(match[1], 10);
+    if (!fs.existsSync(LAST_ID_FILE)) return 0;
+    const data = JSON.parse(fs.readFileSync(LAST_ID_FILE, "utf8"));
+    const id = parseInt(data.lastId, 10) || 0;
     console.log(`📖 [${timestamp()}] Oxirgi ko'rilgan message_id: ${id}`);
     return id;
   } catch (e) {
@@ -71,9 +66,7 @@ async function getLastSeenId() {
 
 async function saveLastSeenId(id) {
   try {
-    await client.sendMessage("me", {
-      message: `${SAVED_MSG_TAG}:${id}`,
-    });
+    fs.writeFileSync(LAST_ID_FILE, JSON.stringify({ lastId: id }), "utf8");
   } catch (e) {
     console.error(`❌ [${timestamp()}] saveLastSeenId xato:`, e.message);
   }
