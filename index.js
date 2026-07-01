@@ -85,13 +85,22 @@ async function checkMissedMessages() {
     const lastId = await getLastSeenId();
     console.log(`🔍 [${timestamp()}] O'tkazib yuborilgan xabarlar tekshirilmoqda (id > ${lastId})...`);
 
-    const msgs = await client.getMessages(TARGET_BOT_ID, { limit: 20 });
+    // Entity ni avval resolve qilamiz — raqam sifatida emas, InputPeerUser sifatida
+    let botEntity;
+    try {
+      botEntity = await client.getInputEntity(TARGET_BOT_ID);
+    } catch (e) {
+      console.error(`❌ [${timestamp()}] Bot entity topilmadi, checkMissedMessages o'tkazib yuborildi:`, e.message);
+      return;
+    }
+
+    const msgs = await client.getMessages(botEntity, { limit: 20 });
     if (!msgs || msgs.length === 0) {
       console.log(`ℹ️ [${timestamp()}] O'tkazib yuborilgan xabar yo'q.`);
       return;
     }
 
-    // Eski dan yangi ga tartiblash
+    // Eskidan yangiga tartiblash
     const sorted = [...msgs].reverse();
     let maxId = lastId;
     let found = 0;
@@ -100,9 +109,6 @@ async function checkMissedMessages() {
       if (!msg.text) continue;
       if (msg.id <= lastId) continue;
       maxId = Math.max(maxId, msg.id);
-
-      const senderId = Number(msg.senderId);
-      if (senderId !== TARGET_BOT_ID) continue;
 
       console.log(`📨 [MISSED] id:${msg.id}\n${msg.text}\n`);
       const parsed = parseMessage(msg.text);
@@ -185,12 +191,20 @@ async function startClient() {
   console.log(`✅ [${timestamp()}] Ulandi: ${me.firstName}`);
   console.log("📡 Kutilmoqda...\n");
 
-  // O'tkazib yuborilgan xabarlarni tekshiramiz (restart vaqtida kelganlar)
-  await checkMissedMessages();
-
   client.addEventHandler(handleMessage, new NewMessage({}));
 
   lastEventAt = Date.now();
+
+  // O'tkazib yuborilgan xabarlarni 5 soniya kechiktirib tekshiramiz —
+  // GramJS entity cache to'liq tayyor bo'lishi uchun vaqt kerak.
+  // Bu await qilinmaydi, ya'ni startClient bloklanmaydi.
+  setTimeout(async () => {
+    try {
+      await checkMissedMessages();
+    } catch (e) {
+      console.error(`❌ [${timestamp()}] checkMissedMessages (delayed) xato:`, e.message);
+    }
+  }, 5000);
 }
 
 // Ulanish hali tirikligini davriy tekshirib turadi.
